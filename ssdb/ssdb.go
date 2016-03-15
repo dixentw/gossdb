@@ -17,13 +17,14 @@ import (
 	"time"
 )
 
+//Client : public API
 type Client struct {
 	sock      *net.TCPConn
-	recv_buf  bytes.Buffer
+	recvBuf   bytes.Buffer
 	process   chan []interface{}
 	result    chan ClientResult
-	Id        string
-	Ip        string
+	ID        string
+	IP        string
 	Port      int
 	Password  string
 	Connected bool
@@ -32,22 +33,19 @@ type Client struct {
 	Closed    bool
 }
 
+//ClientResult : client result
 type ClientResult struct {
-	Id    string
+	ID    string
 	Data  []string
 	Error error
 }
 
+//HashData : struct holding hash data
 type HashData struct {
 	HashName string
 	Key      string
 	Value    string
 }
-
-var debug bool = true
-var version string = "0.1.5"
-
-const layout = "2006-01-06 15:04:05"
 
 func Connect(ip string, port int, auth string) (*Client, error) {
 	client, err := connect(ip, port, auth)
@@ -75,12 +73,6 @@ func connect(ip string, port int, auth string) (*Client, error) {
 	return &c, err
 }
 
-func (c *Client) Debug(flag bool) bool {
-	debug = flag
-	log.Println("SSDB Client Debug Mode:", debug)
-	return debug
-}
-
 func (c *Client) Connect() error {
 	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", c.Ip, c.Port))
 	if err != nil {
@@ -95,9 +87,7 @@ func (c *Client) Connect() error {
 	c.sock = sock
 	c.Connected = true
 	if c.Retry {
-		if debug {
-			log.Printf("Client[%s] Retry connect to %s:%d success.", c.Id, c.Ip, c.Port)
-		}
+		log.Printf("Client[%s] Retry connect to %s:%d success.", c.Id, c.Ip, c.Port)
 	}
 	c.Retry = false
 	c.process = make(chan []interface{})
@@ -106,31 +96,7 @@ func (c *Client) Connect() error {
 	if c.Password != "" {
 		c.Auth(c.Password)
 	}
-
 	return nil
-}
-
-func (c *Client) KeepAlive() {
-	go c.HealthCheck()
-}
-
-func (c *Client) HealthCheck() {
-	timeout := 60
-	//wait client connect to server
-	//time.Sleep(5 * time.Second)
-	for {
-		if c.Connected && !c.Retry && !c.Closed {
-			result, err := c.Do("ping")
-			if err != nil {
-				log.Printf("Client Health Check Failed[%s]:%v\n", c.Id, err)
-			} else {
-				if debug {
-					log.Printf("Client Health Check Success[%s]:%v\n", c.Id, result)
-				}
-			}
-		}
-		time.Sleep(time.Duration(timeout) * time.Second)
-	}
 }
 
 func (c *Client) RetryConnect() {
@@ -739,7 +705,7 @@ func (c *Client) parse() []string {
 			if len(resp) == 0 {
 				continue
 			} else {
-				c.recv_buf.Next(offset)
+				c.recvBuf.Next(offset)
 				return resp
 			}
 		}
@@ -750,7 +716,7 @@ func (c *Client) parse() []string {
 			return nil
 		}
 		//fmt.Printf("packet size:%d\n",size);
-		if offset+size >= c.recv_buf.Len() {
+		if offset+size >= c.recvBuf.Len() {
 			//tmpLen := offset+size
 			//fmt.Printf("buf size too big:%d > buf len:%d\n",tmpLen,c.recv_buf.Len());
 			break
@@ -791,7 +757,6 @@ func (c *Client) UnZip(data []byte) []string {
 				break
 			}
 			p := string(zipData[:Idx])
-			//fmt.Println("p:[",p,"]\n")
 			size, err := strconv.Atoi(string(p))
 			if err != nil || size < 0 {
 				zipData = zipData[Idx+1:]
@@ -800,7 +765,6 @@ func (c *Client) UnZip(data []byte) []string {
 				offset = Idx + 1 + size
 				hiIdx = size + Idx + 1
 				resp = append(resp, string(zipData[Idx+1:hiIdx]))
-				//fmt.Printf("data:[%s] size:%d Idx:%d\n",str,size,Idx+1)
 				zipData = zipData[offset:]
 			}
 
